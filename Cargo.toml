@@ -2,6 +2,11 @@
 name = "libultrahdr-rs"
 version = "0.1.0"
 edition = "2021"
+description = "A Rust interface to libultrahdr"
+keywords = ["libultrahdr", "image", "hdr"]
+categories = ["multimedia", "multimedia::encoding", "multimedia::images"]
+license = "Apache-2.0"
+documentation = "https://docs.rs/libultrahdr"
 
 [dependencies]
-libultrahdr-sys = { path = "../libultrahdr-sys" }
+libultrahdr-sys = "0.1.0"
