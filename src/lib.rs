@@ -8,7 +8,7 @@ mod compressed_image;
 pub use compressed_image::CompressedImage;
 
 mod raw_image;
-pub use raw_image::RawImage;
+pub use raw_image::{BorrowedRawImage, MutRawImage, OwnedRawImage, RawImage};
 
 mod gainmap;
 pub use gainmap::GainmapMetadata;

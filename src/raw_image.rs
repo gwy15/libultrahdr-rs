@@ -1,6 +1,7 @@
 use libultrahdr_sys as sys;
 
-pub struct RawImage<'a> {
+#[derive(Clone)]
+pub struct RawImage<T> {
     /// Image Format
     pub fmt: sys::uhdr_img_fmt_t,
     /// Color Gamut
@@ -11,8 +12,116 @@ pub struct RawImage<'a> {
     pub range: sys::uhdr_color_range_t,
     pub width: u32,
     pub height: u32,
-    pub planes: [&'a mut [u8]; 3],
+    pub planes: [T; 3],
     pub stride: [std::ffi::c_uint; 3],
+}
+
+pub type OwnedRawImage = RawImage<Vec<u8>>;
+pub type BorrowedRawImage<'a> = RawImage<&'a [u8]>;
+pub type MutRawImage<'a> = RawImage<&'a mut [u8]>;
+
+impl MutRawImage<'_> {
+    pub fn from_c(c_image: sys::uhdr_raw_image_t) -> Self {
+        let planes = unsafe { parse_planes(c_image) };
+        Self {
+            fmt: c_image.fmt,
+            color_gamut: c_image.cg,
+            color_transfer: c_image.ct,
+            range: c_image.range,
+            width: c_image.w,
+            height: c_image.h,
+            planes,
+            stride: c_image.stride,
+        }
+    }
+    pub fn into_c(self) -> sys::uhdr_raw_image_t {
+        let mut c_image = sys::uhdr_raw_image_t {
+            fmt: self.fmt,
+            cg: self.color_gamut,
+            ct: self.color_transfer,
+            range: self.range,
+            w: self.width,
+            h: self.height,
+            planes: [std::ptr::null_mut(); 3],
+            stride: self.stride,
+        };
+        for i in 0..3 {
+            c_image.planes[i] = self.planes[i].as_mut_ptr().cast();
+        }
+        c_image
+    }
+}
+impl OwnedRawImage {
+    pub fn new() -> Self {
+        Self {
+            fmt: sys::uhdr_img_fmt_t::UHDR_IMG_FMT_UNSPECIFIED,
+            color_gamut: sys::uhdr_color_gamut::UHDR_CG_UNSPECIFIED,
+            color_transfer: sys::uhdr_color_transfer_t::UHDR_CT_UNSPECIFIED,
+            range: sys::uhdr_color_range_t::UHDR_CR_UNSPECIFIED,
+            width: 0,
+            height: 0,
+            planes: [vec![], vec![], vec![]],
+            stride: [0, 0, 0],
+        }
+    }
+    pub fn as_ref(&self) -> BorrowedRawImage<'_> {
+        BorrowedRawImage {
+            fmt: self.fmt,
+            color_gamut: self.color_gamut,
+            color_transfer: self.color_transfer,
+            range: self.range,
+            width: self.width,
+            height: self.height,
+            planes: [&self.planes[0], &self.planes[1], &self.planes[2]],
+            stride: self.stride,
+        }
+    }
+    pub fn as_mut(&mut self) -> MutRawImage<'_> {
+        MutRawImage {
+            fmt: self.fmt,
+            color_gamut: self.color_gamut,
+            color_transfer: self.color_transfer,
+            range: self.range,
+            width: self.width,
+            height: self.height,
+            planes: unsafe {
+                [
+                    std::slice::from_raw_parts_mut(
+                        self.planes[0].as_mut_ptr(),
+                        self.planes[0].len(),
+                    ),
+                    std::slice::from_raw_parts_mut(
+                        self.planes[1].as_mut_ptr(),
+                        self.planes[1].len(),
+                    ),
+                    std::slice::from_raw_parts_mut(
+                        self.planes[2].as_mut_ptr(),
+                        self.planes[2].len(),
+                    ),
+                ]
+            },
+            stride: self.stride,
+        }
+    }
+}
+
+impl BorrowedRawImage<'_> {
+    pub fn to_owned(&self) -> OwnedRawImage {
+        OwnedRawImage {
+            fmt: self.fmt,
+            color_gamut: self.color_gamut,
+            color_transfer: self.color_transfer,
+            range: self.range,
+            width: self.width,
+            height: self.height,
+            planes: [
+                self.planes[0].to_vec(),
+                self.planes[1].to_vec(),
+                self.planes[2].to_vec(),
+            ],
+            stride: self.stride,
+        }
+    }
 }
 
 pub unsafe fn parse_planes<'a>(raw_image: sys::uhdr_raw_image_t) -> [&'a mut [u8]; 3] {
@@ -98,38 +207,4 @@ pub unsafe fn parse_planes<'a>(raw_image: sys::uhdr_raw_image_t) -> [&'a mut [u8
         }
     }
     planes
-}
-
-impl<'a> From<sys::uhdr_raw_image_t> for RawImage<'a> {
-    fn from(c_image: sys::uhdr_raw_image_t) -> Self {
-        let planes = unsafe { parse_planes(c_image) };
-        Self {
-            fmt: c_image.fmt,
-            color_gamut: c_image.cg,
-            color_transfer: c_image.ct,
-            range: c_image.range,
-            width: c_image.w,
-            height: c_image.h,
-            planes,
-            stride: c_image.stride,
-        }
-    }
-}
-impl<'a> From<RawImage<'a>> for sys::uhdr_raw_image_t {
-    fn from(raw_image: RawImage<'a>) -> sys::uhdr_raw_image_t {
-        let mut c_image = sys::uhdr_raw_image_t {
-            fmt: raw_image.fmt,
-            cg: raw_image.color_gamut,
-            ct: raw_image.color_transfer,
-            range: raw_image.range,
-            w: raw_image.width,
-            h: raw_image.height,
-            planes: [std::ptr::null_mut(); 3],
-            stride: raw_image.stride,
-        };
-        for i in 0..3 {
-            c_image.planes[i] = raw_image.planes[i].as_mut_ptr().cast();
-        }
-        c_image
-    }
 }

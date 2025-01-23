@@ -1,6 +1,6 @@
 use libultrahdr_sys as sys;
 
-use crate::{CompressedImage, GainmapMetadata, RawImage, Result, UhdrError};
+use crate::{CompressedImage, GainmapMetadata, MutRawImage, Result, UhdrError};
 
 pub struct Encoder {
     pub(crate) ptr: *mut sys::uhdr_codec_private,
@@ -14,57 +14,59 @@ impl Encoder {
     /// Add raw image descriptor to encoder context.
     pub fn set_raw_image(
         &mut self,
-        img: RawImage<'_>,
+        img: MutRawImage<'_>,
         intent: sys::uhdr_img_label_t,
     ) -> Result<()> {
-        let mut c_img = img.into();
+        let mut c_img = img.into_c();
         let err = unsafe { sys::uhdr_enc_set_raw_image(self.ptr, &mut c_img, intent) };
         UhdrError::check(err)?;
         Ok(())
     }
-    pub fn set_raw_sdr_image(&mut self, img: RawImage<'_>) -> Result<()> {
+    pub fn set_raw_sdr_image(&mut self, img: MutRawImage<'_>) -> Result<()> {
         self.set_raw_image(img, sys::uhdr_img_label_t::UHDR_SDR_IMG)
     }
-    pub fn set_raw_hdr_image(&mut self, img: RawImage<'_>) -> Result<()> {
+    pub fn set_raw_hdr_image(&mut self, img: MutRawImage<'_>) -> Result<()> {
         self.set_raw_image(img, sys::uhdr_img_label_t::UHDR_HDR_IMG)
     }
 
     pub fn set_compressed_image(
         &mut self,
-        compressed_image: &CompressedImage<'_>,
+        mut compressed_image: CompressedImage<'_>,
         intent: sys::uhdr_img_label_t,
     ) -> Result<()> {
-        let err =
-            unsafe { sys::uhdr_enc_set_compressed_image(self.ptr, compressed_image.ptr, intent) };
+        let err = unsafe {
+            sys::uhdr_enc_set_compressed_image(self.ptr, compressed_image.as_mut_ptr(), intent)
+        };
         UhdrError::check(err)?;
         Ok(())
     }
     pub fn set_compressed_base_image(
         &mut self,
-        compressed_image: &CompressedImage<'_>,
+        compressed_image: CompressedImage<'_>,
     ) -> Result<()> {
         self.set_compressed_image(compressed_image, sys::uhdr_img_label_t::UHDR_BASE_IMG)
     }
     pub fn set_compressed_sdr_image(
         &mut self,
-        compressed_image: &CompressedImage<'_>,
+        compressed_image: CompressedImage<'_>,
     ) -> Result<()> {
         self.set_compressed_image(compressed_image, sys::uhdr_img_label_t::UHDR_SDR_IMG)
     }
     pub fn set_compressed_hdr_image(
         &mut self,
-        compressed_image: &CompressedImage<'_>,
+        compressed_image: CompressedImage<'_>,
     ) -> Result<()> {
         self.set_compressed_image(compressed_image, sys::uhdr_img_label_t::UHDR_HDR_IMG)
     }
 
     pub fn set_gainmap_image(
         &mut self,
-        img: CompressedImage<'_>,
+        mut img: CompressedImage<'_>,
         metadata: GainmapMetadata,
     ) -> Result<()> {
         let mut metadata = metadata.into();
-        let err = unsafe { sys::uhdr_enc_set_gainmap_image(self.ptr, img.ptr, &mut metadata) };
+        let err =
+            unsafe { sys::uhdr_enc_set_gainmap_image(self.ptr, img.as_mut_ptr(), &mut metadata) };
         UhdrError::check(err)?;
         Ok(())
     }
@@ -132,7 +134,7 @@ impl Encoder {
         if err.is_null() {
             return None;
         }
-        Some(unsafe { CompressedImage::from_ptr(err) })
+        Some(unsafe { CompressedImage::from_mut_ptr(err) })
     }
 }
 impl Drop for Encoder {
